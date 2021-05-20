@@ -1,5 +1,6 @@
 import csv
 import collections
+from decimal import Decimal
 import glob
 import logging
 import multiprocessing.dummy as mp
@@ -25,7 +26,8 @@ class GaussianMult():
 
     def perturb(self, param):
         param = np.asarray([param]) if np.isscalar(param) else np.asarray(param)
-        new = np.random.normal(self.mu, self.sigma, param.size) * param
+        perturb = np.random.normal(self.mu, self.sigma, param.size)
+        new = perturb * param
         if not self.min is None:
             new[new < self.min] = self.min
         if not self.max is None:
@@ -70,15 +72,14 @@ class Particle():
 
     def __init__(self,
                  obs_error, input_error, state, state_perturbation,
-                 weight, n, err_sigma,
-                 data_dir, window_dir, station_fn, log):
+                 weight, n,
+                 data_dir, window_dir, state_dir, station_fn, log):
         self.obs_error = obs_error
         self.input_error = input_error
         self.state = state
         self.state_perturbation = state_perturbation
         self.weight = weight
         self.n = n
-        self.err_sigma = err_sigma
 
         self.ready = True
         self.start = None
@@ -90,7 +91,8 @@ class Particle():
             os.makedirs(self.root_dir)
 
         self.data_dir = data_dir
-        self.station_dir = os.path.join(self.data_dir, 'input', 'station')
+        self.input_dir = os.path.join(self.data_dir, 'input')
+        self.station_dir = os.path.join(self.input_dir, 'station')
         self.stations = glob.glob(os.path.join(self.station_dir, station_fn))
         logging.debug('STATIONS: %s', self.stations)
 
@@ -98,7 +100,13 @@ class Particle():
         if not os.path.exists(self.adj_station_dir):
             os.makedirs(self.adj_station_dir)
 
+        self.in_state_dir = state_dir
+
         self.log = log
+
+        self.template_dir = os.path.join(self.data_dir, 'template')
+        self.template_cfg = os.path.join(self.template_dir,
+                                         'dhsvm.cfg.template')
 
     def __str__(self):
         return ', '.join([
@@ -115,8 +123,14 @@ class Particle():
         self.start = start
         self.end = end
 
+        # Perturb the state
+        self.state = {
+            param: self.state_perturbation[param].perturb.perturb(state)
+            for param, state in self.state.items()
+        }
+
         # Perturb the observations
-        for station in self.stations:
+        for i, station in enumerate(self.stations, start=1):
             df = pd.read_csv(
                 station,
                 sep='\t',
@@ -131,11 +145,12 @@ class Particle():
                 index_col='datetime')
             df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H')
             df = df[(df.index >= self.start) & (df.index <= self.end)]
-            df.precipitation = self.input_error['P'].perturb(df.precipitation)
+            df.precipitation = self.input_error['P'].perturb(
+                df.precipitation * self.state['P_adj'])
 
             logging.debug(station)
             adj_station_pth = os.path.join(self.adj_station_dir,
-                                           os.path.basename(station))
+                                           'Station{}.tsv'.format(i))
             logging.debug('Precipitation adjusted and saved to %s',
                           adj_station_pth)
             df.to_csv(
@@ -147,21 +162,31 @@ class Particle():
                 date_format = '%m/%d/%Y-%H',
             )
 
-        # Perturb the state
-        self.state = {
-            param: self.state_perturbation[param].perturb.perturb(state)
-            for param, state in self.state.items()
-        }
+         # Write configuration file
+        with open(self.template_cfg) as template:
+            cfg = template.read()
 
-        # Write configuration file
+        logging.debug(self.state)
+        with open(self.cfg_path, 'w') as cfgfile:
+            cfgfile.write(
+                cfg.format(
+                    root_dir = self.root_dir,
+                    input_dir = self.input_dir,
+                    start=self.start,
+                    end=self.end,
+                    station_dir = self.adj_station_dir,
+                    in_state_dir = self.in_state_dir,
+                    **{key: value[0] for key, value in self.state.items()}
+                )
+            )
 
     @property
     def cfg_path(self):
-        return os.path.join(self.rootdir, self.windowdir, 'dhsvm.cfg')
+        return os.path.join(self.root_dir, 'dhsvm.cfg')
 
     @property
     def summary_path(self):
-        return os.path.join(self.rootdir, self.windowdir, 'summary.txt')
+        return os.path.join(self.root_dir, 'summary.txt')
 
     def run_next(self):
         """ Run DHSVM in a parallel process """
@@ -186,7 +211,10 @@ class Particle():
             df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H')
             df = df[(df.index >= self.start) & (df.index <= self.end)]
 
-        df['streamflow'] = df.precipitation * self.state['m'] + self.state['b']
+        df['streamflow'] = df.precipitation + self.state['b']
+        # Avoid negative or 0 values for streamflow
+        df['streamflow'][df['streamflow'] <= 0] = 1e-8
+
         df[['streamflow']].to_csv(
             os.path.join(self.root_dir, 'Streamflow.Only'),
             sep='\t',
@@ -196,10 +224,15 @@ class Particle():
         return self
 
     def likelihood(self, results, obs):
-        return (np.exp(-0.5 * ((obs - results) / self.err_sigma)**2) /
-                (err_sigma * np.sqrt(2 * np.pi)))
+        obs = [Decimal(o) for o in obs]
+        results = [Decimal(r) for r in results]
+        e = Decimal(np.log(1 + self.obs_error**2))
+        return [(np.exp((r.log10() - o.log10())**2 / (Decimal(-2) * e**2)) /
+                 (r * e * Decimal(np.sqrt(2 * np.pi))))
+                for r, o in zip(results, obs)]
 
-    def rmse(self, results, obs):
+
+    def calc_rmse(self, results, obs):
         return np.sqrt(np.mean((obs - results)**2))
 
     def update_weight(self, obs):
@@ -214,24 +247,28 @@ class Particle():
                 'modelled'],
             index_col = 'datetime'
         )
-        logging.debug(results)
+
         results.index = pd.to_datetime(
             results.index, format='%m.%d.%Y-%H:%M:%S')
         results = results.join(obs, how='inner')
-
-        results['likelihood'] = self.likelihood(results['modelled'],
-                                                results['observed'])
+        results['likelihood'] = self.likelihood(results['modelled'].to_numpy(),
+                                                results['observed'].to_numpy())
         logging.debug(results)
 
-        self.weight = np.prod(results['likelihood'])
+        self.weight = Decimal(1)
+        for l in results['likelihood']:
+            self.weight *= Decimal(l)
         logging.debug('UPDATED WEIGHT: %s', self.weight)
 
+        self.rmse = self.calc_rmse(results['modelled'], results['observed'])
+
+    def write_log(self):
         with open(self.log, 'a') as log_file:
             writer = csv.writer(log_file)
-            writer.writerow([self.weight,
-                             self.rmse(results['modelled'],
-                                       results['observed']),
-                             self.state['m'][0], self.state['b'][0]])
+            writer.writerow([self.n,
+                             self.weight,
+                             self.rmse] +
+                             [val[0] for val in self.state.values()])
 
 
 class Smoother():
@@ -239,7 +276,7 @@ class Smoother():
 
     def __init__(self, nparticle,
                  obs_error, input_error, state_perturbation,
-                 dates, obs, err_sigma,
+                 dates, obs,
                  jar,
                  data_dir, out_dir, station_fn):
         # Set smoother attributes
@@ -254,21 +291,21 @@ class Smoother():
         self.i = 0
 
         self.obs = obs
-        self.err_sigma = err_sigma
         self.jar = jar
 
         self.data_dir = data_dir
         self.out_dir = out_dir
+        self.init_state_dir = os.path.join(self.data_dir, 'state')
         self.station_fn = station_fn
         if not os.path.exists(self.out_dir):
             os.makedirs(self.out_dir)
 
         # Initialize logging file
         self.log = os.path.join(self.out_dir, 'particles.csv')
-        self.all_params = ['m', 'b']
+        self.all_params = list(self.state_perturbation.keys())
         with open(self.log, 'w') as log_file:
             writer = csv.writer(log_file)
-            writer.writerow(['weight', 'rmse'] + self.all_params)
+            writer.writerow(['particle', 'weight', 'rmse'] + self.all_params)
 
         # Initialize particles
         self.initialize_particles()
@@ -302,12 +339,13 @@ class Smoother():
         # ... with uniform weights
         weight = 1 / self.nparticle
         for pidx in range(self.nparticle):
-            state = {key: st[pidx] for key, st in initial_states.items()}
+            state = collections.OrderedDict([
+                (key, st[pidx]) for key, st in initial_states.items()])
             self.new_particles.append(
                 Particle(self.obs_error, self.input_error,
                          state, self.state_perturbation,
-                         weight, pidx, self.err_sigma,
-                         self.data_dir, self.window_dir,
+                         weight, pidx,
+                         self.data_dir, self.window_dir, self.init_state_dir,
                          self.station_fn, self.log))
             logging.debug('Initial state of particle %s: %s', pidx, state)
 
@@ -343,9 +381,15 @@ class Smoother():
         for p in self.particles:
             p.update_weight(self.obs)
 
-        total_weights = np.sum([p.weight for p in self.particles])
+        total_weights = Decimal(0)
         for p in self.particles:
-            p.weight = p.weight / total_weights
+            total_weights += p.weight
+            logging.debug('TOTAL WEIGHT: %s', total_weights)
+
+        for p in self.particles:
+            p.weight = float(p.weight / total_weights)
+            p.write_log()
+            logging.debug('NORMALIZED WEIGHT: %s', p.weight)
 
     def resample(self):
         self.particles = list(filter(lambda x: x.weight>0.001, self.particles))
@@ -353,11 +397,12 @@ class Smoother():
             raise ValueError('No particles with non-negligible weights')
         self.new_particles = [
             Particle(self.obs_error, self.input_error,
-                     state, self.state_perturbation,
-                     None, idx, self.err_sigma,
-                     self.data_dir, self.window_dir, self.station_fn, self.log)
-            for idx, state in enumerate(random.choices(
-                [p.state for p in self.particles],
+                     p.state, self.state_perturbation,
+                     None, idx,
+                     self.data_dir, self.window_dir, p.root_dir,
+                     self.station_fn, self.log)
+            for idx, p in enumerate(random.choices(
+                self.particles,
                 [p.weight for p in self.particles],
                 k=self.nparticle))
             ]
@@ -400,27 +445,37 @@ if __name__ == '__main__':
         names = ['datetime', 'observed'],
         index_col = 'datetime',
         parse_dates = ['datetime'],
-        na_values = 'Eqp'
+        na_values = 'Eqp',
+        engine='python'
     )
     logging.debug(obs)
     obs.observed = obs.observed / 35.31 * 3600 / 125199354 * 1000 # cfs to mm/h
 
     # Initialize perturbation distributions
-    pct_error = 0.06
-    err_sigma = pct_error * np.max(obs.observed)
-    logging.debug('OBSERVATION ERROR STDDEV: %s', err_sigma)
-    obs_error = {
-        'streamflow':  GaussianMult(1, pct_error, None, None)
-        }
+    obs_error = 0.2
     input_error = {
-        'P': GaussianMult(1, 0.1, 0, None)
+        'P': GaussianMult(1, 0.01, 0, None)
         }
-    state_perturbation = {
-        'm': State(init=Uniform(-5, 5),
-                    perturb=GaussianAdd(0, .1, None, None)),
-        'b': State(init=Uniform(.001, .1),
-                    perturb=GaussianMult(1, .1, 0, None))
-        }
+    state_perturbation = collections.OrderedDict([
+        ('b',
+         State(init=Uniform(.001, .1),
+               perturb=GaussianMult(1, .3, 0, None))),
+        ('P_adj',
+         State(init=Uniform(0.8, 2.5),
+               perturb=GaussianMult(1, .3, 0, None))),
+        ('sandy_loam_K',
+         State(init=Uniform(-5, -3),
+               perturb=GaussianMult(1, .1, -10, -1))),
+        ('sandy_loam_exp',
+         State(init=Uniform(0.2, 4),
+               perturb=GaussianMult(1, .1, 0, None))),
+        ('loam_K',
+         State(init=Uniform(-6, -4),
+               perturb=GaussianMult(1, .1, -10, -1))),
+        ('loam_exp',
+         State(init=Uniform(.2, 4),
+               perturb=GaussianMult(1, .1, 0, None)))
+        ])
 
 
     # Compute window dates
@@ -432,7 +487,7 @@ if __name__ == '__main__':
     else:
         pbs = Smoother(nparticle,
                        obs_error, input_error, state_perturbation,
-                       dates, obs, err_sigma,
+                       dates, obs,
                        jar,
                        data_dir, out_dir, station_fn)
 
