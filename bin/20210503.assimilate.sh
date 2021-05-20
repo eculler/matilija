@@ -1,5 +1,5 @@
 #/bin/bash
-python3 ../src/pbsmoother.py 2 1MS \
+python3 ../src/pbsmoother.py 2 1D \
   ~/GoogleDrive/research/landslide.matilija.sync \
   matilija.discharge.20200408.tsv \
   Station.20190514.*.tsv \

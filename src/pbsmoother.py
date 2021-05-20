@@ -87,8 +87,13 @@ class Particle():
 
         # Establish directories and file paths
         self.root_dir = os.path.join(window_dir, 'particle{n}'.format(n=self.n))
+        self.stdout_pth = os.path.join(self.root_dir, 'stdout.txt')
         if not os.path.exists(self.root_dir):
             os.makedirs(self.root_dir)
+        self.cfg_dir = os.path.join(self.root_dir, 'cfg')
+        if not os.path.exists(self.cfg_dir):
+            os.makedirs(self.cfg_dir)
+        self.cfg_path = os.path.join(self.cfg_dir, 'dhsvm.cfg')
 
         self.data_dir = data_dir
         self.input_dir = os.path.join(self.data_dir, 'input')
@@ -96,7 +101,8 @@ class Particle():
         self.stations = glob.glob(os.path.join(self.station_dir, station_fn))
         logging.debug('STATIONS: %s', self.stations)
 
-        self.adj_station_dir = os.path.join(self.root_dir, 'station')
+        self.adj_input_dir = os.path.join(self.root_dir, 'input')
+        self.adj_station_dir = os.path.join(self.adj_input_dir, 'station')
         if not os.path.exists(self.adj_station_dir):
             os.makedirs(self.adj_station_dir)
 
@@ -123,13 +129,13 @@ class Particle():
         self.start = start
         self.end = end
 
-        # Perturb the state
+        # Perturb the model state parameters
         self.state = {
             param: self.state_perturbation[param].perturb.perturb(state)
             for param, state in self.state.items()
         }
 
-        # Perturb the observations
+        # Perturb the precipitation observations
         for i, station in enumerate(self.stations, start=1):
             df = pd.read_csv(
                 station,
@@ -167,26 +173,15 @@ class Particle():
             cfg = template.read()
 
         logging.debug(self.state)
-        with open(self.cfg_path, 'w') as cfgfile:
-            cfgfile.write(
+        with open(self.cfg_path, 'w') as cfg_file:
+            cfg_file.write(
                 cfg.format(
-                    root_dir = self.root_dir,
-                    input_dir = self.input_dir,
                     start=self.start,
                     end=self.end,
-                    station_dir = self.adj_station_dir,
-                    in_state_dir = self.in_state_dir,
                     **{key: value[0] for key, value in self.state.items()}
                 )
             )
 
-    @property
-    def cfg_path(self):
-        return os.path.join(self.root_dir, 'dhsvm.cfg')
-
-    @property
-    def summary_path(self):
-        return os.path.join(self.root_dir, 'summary.txt')
 
     def run_next(self):
         """ Run DHSVM in a parallel process """
@@ -195,32 +190,28 @@ class Particle():
                       self.n, self.start.isoformat())
         logging.debug('State: %s', self.state)
 
-        for station in self.stations:
-            df = pd.read_csv(
-                os.path.join(self.station_dir, station),
-                sep='\t',
-                names = [
-                    'datetime',
-                    'air_temp',
-                    'wind_speed',
-                    'relative_humidity',
-                    'incoming_shortwave',
-                    'incoming_longwave',
-                    'precipitation'],
-                index_col='datetime')
-            df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H')
-            df = df[(df.index >= self.start) & (df.index <= self.end)]
+        # Start DHSVM in a new process
+        with open(self.stdout_pth, 'w') as summary_file:
+            logging.debug(mp.current_process())
+            exit = subprocess.call(
+                ['docker', 'run',
+                 '-v', self.cfg_dir + ':/matilija/cfg',
+                 '-v', self.data_dir + '/input:/matilija/input',
+                 '-v', self.root_dir + '/input:/matilija/variable_input',
+                 '-v', self.in_state_dir + ':/matilija/state',
+                 '-v', self.root_dir + '/output:/matilija/output',
+                 '-t', 'dhsvm-matilija:latest',
+                 '/matilija/src/dhsvm/build/DHSVM/sourcecode/DHSVM',
+                 '/matilija/cfg/dhsvm.cfg'],
+                cwd=self.root_dir,
+                stdout=summary_file,
+                stderr=summary_file)
+            if not exit==0:
+                self._fitness = -float('inf')
+                logging.error(
+                    'DHSVM FAILED particle %d window %d', self.n, self.i)
 
-        df['streamflow'] = df.precipitation + self.state['b']
-        # Avoid negative or 0 values for streamflow
-        df['streamflow'][df['streamflow'] <= 0] = 1e-8
-
-        df[['streamflow']].to_csv(
-            os.path.join(self.root_dir, 'Streamflow.Only'),
-            sep='\t',
-            header = False,
-            date_format = '%m.%d.%Y-%H:%M:%S'
-        )
+        self.ready = exit==0
         return self
 
     def likelihood(self, results, obs):
@@ -361,10 +352,6 @@ class Smoother():
         self.particles = pool.map(self.run_particle_window, self.particles)
         pool.close()
         pool.join()
-        #result = []
-        #for particle in self.particles:
-        #    result.append(self.run_particle_window(particle))
-        #self.particles = result
 
         self.update_weights()
         self.i += 1
