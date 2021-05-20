@@ -108,6 +108,10 @@ class Particle():
 
         self.in_state_dir = state_dir
 
+        self.output_dir = os.path.join(self.root_dir, 'output')
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
         self.log = log
 
         self.template_dir = os.path.join(self.data_dir, 'template')
@@ -209,7 +213,7 @@ class Particle():
             if not exit==0:
                 self._fitness = -float('inf')
                 logging.error(
-                    'DHSVM FAILED particle %d window %d', self.n, self.i)
+                    'DHSVM FAILED particle %d', self.n)
 
         self.ready = exit==0
         return self
@@ -229,8 +233,8 @@ class Particle():
     def update_weight(self, obs):
         """ Calculate a new weight based on observations """
         results = pd.read_csv(
-            os.path.join(self.root_dir, 'Streamflow.Only'),
-            sep='\t',
+            os.path.join(self.output_dir, 'Streamflow.Only'),
+            sep=r'\s+',
             #skiprows=2,
             header = None,
             names = [
@@ -269,7 +273,7 @@ class Smoother():
                  obs_error, input_error, state_perturbation,
                  dates, obs,
                  jar,
-                 data_dir, out_dir, station_fn):
+                 data_dir, out_dir, station_fn, init_state_dir):
         # Set smoother attributes
         self.nparticle = nparticle
 
@@ -286,7 +290,7 @@ class Smoother():
 
         self.data_dir = data_dir
         self.out_dir = out_dir
-        self.init_state_dir = os.path.join(self.data_dir, 'state')
+        self.init_state_dir = init_state_dir
         self.station_fn = station_fn
         if not os.path.exists(self.out_dir):
             os.makedirs(self.out_dir)
@@ -416,7 +420,8 @@ if __name__ == '__main__':
     data_dir = sys.argv[3]
     discharge_fn = sys.argv[4]
     station_fn = sys.argv[5]
-    out_dir = sys.argv[6]
+    init_state_dir = os.path.join(data_dir, 'state', sys.argv[6])
+    out_dir = sys.argv[7]
 
     # Derived parameters
     jar = os.path.join(out_dir, 'swarm.jar')
@@ -466,7 +471,7 @@ if __name__ == '__main__':
 
 
     # Compute window dates
-    dates = pd.date_range('2003-10-01', '2017-10-01', freq=window)
+    dates = pd.date_range('2002-10-01', '2017-10-01', freq=window)
     # Initialize smoother
     if os.path.exists(jar):
         with open(jar, 'rb') as jarfile:
@@ -476,7 +481,7 @@ if __name__ == '__main__':
                        obs_error, input_error, state_perturbation,
                        dates, obs,
                        jar,
-                       data_dir, out_dir, station_fn)
+                       data_dir, out_dir, station_fn, init_state_dir)
 
 
     # Run smoother for each window
