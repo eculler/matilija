@@ -225,7 +225,7 @@ class Particle():
         obs = [Decimal(o) for o in obs]
         results = [Decimal(r) for r in results]
         #e = Decimal(np.log(1 + self.obs_error**2))
-        e = [Decimal(self.obs_error) * o for o in obs]
+        err = [Decimal(self.obs_error) * o for o in obs]
         # return [(np.exp((r.log10() - o.log10())**2 / (Decimal(-2) * e**2)) /
         #          (r * e * Decimal(np.sqrt(2 * np.pi))))
         #         for r, o in zip(results, obs)]
