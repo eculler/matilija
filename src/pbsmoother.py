@@ -14,6 +14,8 @@ import sys
 import time
 import numpy as np
 
+NPROCESSES = 8
+
 State = collections.namedtuple('State', ['init', 'perturb'])
 
 class GaussianMult():
@@ -64,6 +66,7 @@ class Uniform():
 
     def initialize(self, n):
         sequence = np.linspace(self.min, self.max, n)
+        logging.debug(sequence)
         random.shuffle(sequence)
         return sequence
 
@@ -221,10 +224,14 @@ class Particle():
     def likelihood(self, results, obs):
         obs = [Decimal(o) for o in obs]
         results = [Decimal(r) for r in results]
-        e = Decimal(np.log(1 + self.obs_error**2))
-        return [(np.exp((r.log10() - o.log10())**2 / (Decimal(-2) * e**2)) /
-                 (r * e * Decimal(np.sqrt(2 * np.pi))))
-                for r, o in zip(results, obs)]
+        #e = Decimal(np.log(1 + self.obs_error**2))
+        e = [Decimal(self.obs_error) * o for o in obs]
+        # return [(np.exp((r.log10() - o.log10())**2 / (Decimal(-2) * e**2)) /
+        #          (r * e * Decimal(np.sqrt(2 * np.pi))))
+        #         for r, o in zip(results, obs)]
+        return [(np.exp(((r - o) / e)**2 * (Decimal(-0.5) )) /
+                 (e * Decimal(np.sqrt(2 * np.pi))))
+                for r, o, e in zip(results, obs, err)]
 
 
     def calc_rmse(self, results, obs):
@@ -235,7 +242,7 @@ class Particle():
         results = pd.read_csv(
             os.path.join(self.output_dir, 'Streamflow.Only'),
             sep=r'\s+',
-            #skiprows=2,
+            skiprows=2,
             header = None,
             names = [
                 'datetime',
@@ -245,10 +252,15 @@ class Particle():
 
         results.index = pd.to_datetime(
             results.index, format='%m.%d.%Y-%H:%M:%S')
-        results = results.join(obs, how='inner')
+
+        results = results.join(obs, how='inner').resample('1D').mean()
+        # Exclude rows with zeros
+        results = results[results.modelled > 0]
+        results.dropna(inplace=True)
+        logging.debug('Merged dataframe:\n%s', results)
         results['likelihood'] = self.likelihood(results['modelled'].to_numpy(),
                                                 results['observed'].to_numpy())
-        logging.debug(results)
+        logging.debug('Likelihood:\n%s', results)
 
         self.weight = Decimal(1)
         for l in results['likelihood']:
@@ -352,7 +364,7 @@ class Smoother():
 
         self.particles = self.new_particles
 
-        pool = mp.Pool(nparticle)
+        pool = mp.Pool(NPROCESSES)
         self.particles = pool.map(self.run_particle_window, self.particles)
         pool.close()
         pool.join()
@@ -390,7 +402,7 @@ class Smoother():
             Particle(self.obs_error, self.input_error,
                      p.state, self.state_perturbation,
                      None, idx,
-                     self.data_dir, self.window_dir, p.root_dir,
+                     self.data_dir, self.window_dir, p.output_dir,
                      self.station_fn, self.log)
             for idx, p in enumerate(random.choices(
                 self.particles,
@@ -440,8 +452,9 @@ if __name__ == '__main__':
         na_values = 'Eqp',
         engine='python'
     )
-    logging.debug(obs)
-    obs.observed = obs.observed / 35.31 * 3600 / 125199354 * 1000 # cfs to mm/h
+    obs = obs.resample('1H').mean()
+    obs.observed = obs.observed / 35.31 * 3600 # cfs to mm/h
+    logging.debug('Observations:\n%s', obs)
 
     # Initialize perturbation distributions
     obs_error = 0.2
@@ -456,14 +469,14 @@ if __name__ == '__main__':
          State(init=Uniform(0.8, 2.5),
                perturb=GaussianMult(1, .3, 0, None))),
         ('sandy_loam_K',
-         State(init=Uniform(-5, -3),
-               perturb=GaussianMult(1, .1, -10, -1))),
+         State(init=Uniform(1e-5, 1e-3),
+               perturb=GaussianMult(1, .1, 0, None))),
         ('sandy_loam_exp',
          State(init=Uniform(0.2, 4),
                perturb=GaussianMult(1, .1, 0, None))),
         ('loam_K',
-         State(init=Uniform(-6, -4),
-               perturb=GaussianMult(1, .1, -10, -1))),
+         State(init=Uniform(1e-6, 1e-4),
+               perturb=GaussianMult(1, .1, 0, None))),
         ('loam_exp',
          State(init=Uniform(.2, 4),
                perturb=GaussianMult(1, .1, 0, None)))
@@ -471,7 +484,7 @@ if __name__ == '__main__':
 
 
     # Compute window dates
-    dates = pd.date_range('2002-10-01', '2017-10-01', freq=window)
+    dates = pd.date_range('2003-10-01', '2017-10-01', freq=window)
     # Initialize smoother
     if os.path.exists(jar):
         with open(jar, 'rb') as jarfile:
