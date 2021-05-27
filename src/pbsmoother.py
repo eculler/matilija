@@ -14,8 +14,6 @@ import sys
 import time
 import numpy as np
 
-NPROCESSES = 8
-
 State = collections.namedtuple('State', ['init', 'perturb'])
 
 class GaussianMult():
@@ -229,7 +227,7 @@ class Particle():
         # return [(np.exp((r.log10() - o.log10())**2 / (Decimal(-2) * e**2)) /
         #          (r * e * Decimal(np.sqrt(2 * np.pi))))
         #         for r, o in zip(results, obs)]
-        return [(np.exp(((r - o) / e)**2 * (Decimal(-0.5) )) /
+        return [(np.exp( ((r - o) / e)**2 * (Decimal(-0.5)) ) /
                  (e * Decimal(np.sqrt(2 * np.pi))))
                 for r, o, e in zip(results, obs, err)]
 
@@ -255,7 +253,7 @@ class Particle():
 
         results = results.join(obs, how='inner').resample('1D').mean()
         # Exclude rows with zeros
-        results = results[results.modelled > 0]
+        #results = results[results.modelled > 0]
         results.dropna(inplace=True)
         logging.debug('Merged dataframe:\n%s', results)
         results['likelihood'] = self.likelihood(results['modelled'].to_numpy(),
@@ -281,13 +279,14 @@ class Particle():
 class Smoother():
     """Manage Particles according to particle batch smoother algorithm"""
 
-    def __init__(self, nparticle,
+    def __init__(self, nparticle, nprocesses,
                  obs_error, input_error, state_perturbation,
                  dates, obs,
                  jar,
                  data_dir, out_dir, station_fn, init_state_dir):
         # Set smoother attributes
         self.nparticle = nparticle
+        self.nprocesses = nprocesses
 
         self.obs_error = obs_error
         self.input_error = input_error
@@ -364,7 +363,7 @@ class Smoother():
 
         self.particles = self.new_particles
 
-        pool = mp.Pool(NPROCESSES)
+        pool = mp.Pool(self.nprocesses)
         self.particles = pool.map(self.run_particle_window, self.particles)
         pool.close()
         pool.join()
@@ -428,12 +427,13 @@ if __name__ == '__main__':
 
     # Command line parameters
     nparticle = int(sys.argv[1])
-    window = sys.argv[2]
-    data_dir = sys.argv[3]
-    discharge_fn = sys.argv[4]
-    station_fn = sys.argv[5]
-    init_state_dir = os.path.join(data_dir, 'state', sys.argv[6])
-    out_dir = sys.argv[7]
+    nprocesses = int(sys.argv[2])
+    window = sys.argv[3]
+    data_dir = sys.argv[4]
+    discharge_fn = sys.argv[5]
+    station_fn = sys.argv[6]
+    init_state_dir = os.path.join(data_dir, 'state', sys.argv[7])
+    out_dir = sys.argv[8]
 
     # Derived parameters
     jar = os.path.join(out_dir, 'swarm.jar')
@@ -453,7 +453,7 @@ if __name__ == '__main__':
         engine='python'
     )
     obs = obs.resample('1H').mean()
-    obs.observed = obs.observed / 35.31 * 3600 # cfs to mm/h
+    obs.observed = obs.observed / 35.31 * 3600 # cfs to m^3/h
     logging.debug('Observations:\n%s', obs)
 
     # Initialize perturbation distributions
@@ -462,12 +462,9 @@ if __name__ == '__main__':
         'P': GaussianMult(1, 0.01, 0, None)
         }
     state_perturbation = collections.OrderedDict([
-        ('b',
-         State(init=Uniform(.001, .1),
-               perturb=GaussianMult(1, .3, 0, None))),
         ('P_adj',
          State(init=Uniform(0.8, 2.5),
-               perturb=GaussianMult(1, .3, 0, None))),
+               perturb=GaussianMult(1, .1, 0, None))),
         ('sandy_loam_K',
          State(init=Uniform(1e-5, 1e-3),
                perturb=GaussianMult(1, .1, 0, None))),
@@ -484,13 +481,13 @@ if __name__ == '__main__':
 
 
     # Compute window dates
-    dates = pd.date_range('2003-10-01', '2017-10-01', freq=window)
+    dates = pd.date_range('2004-10-01', '2017-10-01', freq=window)
     # Initialize smoother
     if os.path.exists(jar):
         with open(jar, 'rb') as jarfile:
             pbs = pickle.load(jarfile)
     else:
-        pbs = Smoother(nparticle,
+        pbs = Smoother(nparticle, nprocesses,
                        obs_error, input_error, state_perturbation,
                        dates, obs,
                        jar,
