@@ -17,9 +17,9 @@ in:
 
   utc-offset: -8
 
-  start: 1980-10-01 00:00:00.00
+  start: 2012-10-01 00:00:00.00
 
-  end: 2020-04-21 00:00:00.00
+  end: 2021-06-28 00:00:00.00
 
   dem-all: !Tiles
     bbox: *bbox
@@ -49,7 +49,7 @@ in:
     dirname: /lsmutils/data/nldas
     filename: nldas
     default_ext: nc
-    url: https://eculler:hydro1.gesdisc.eosdis.nasa.gov/dods/NLDAS_FORA0125_H.002
+    url: https://hydro1.gesdisc.eosdis.nasa.gov/dods/NLDAS_FORA0125_H.002
 
   polaris: !Combo
     dimensions: ['types', 'tiles', 'layers']
@@ -107,41 +107,41 @@ sequence: !OpSequence
 
     ## Delineation, network, mask ##
     ################################
-    - !OpSequence
-      name: dhsvm-dem-outlet
-      in:
-        outlet-coord: outlet-coord
-        projected-srs: projected-srs
-        dem-all: dem-all
-        bbox: bbox
-      out:
-        dem: dem
-        outlet: outlet
-
-    - !OpSequence
-      name: dhsvm-network
-      in:
-        dem: dem
-        outlet: outlet
-        soil-min-depth: soil-min-depth
-        soil-max-depth: soil-max-depth
-      out:
-        labelled-outlet: labelled-outlet
-        flow-direction: flow-direction
-        soil-depth: soil-depth
-        boundary-raster: boundary-raster
-        boundary-vector: boundary-vector
-        stream-network: stream-network
-        network: network
-        map: map
-        class: class
-        state: network-state
-    - !Operation
-      name: dhsvm-mask
-      in:
-        input-ds: boundary-raster
-      out:
-        netcdf: mask-nc
+    # - !OpSequence
+    #   name: dhsvm-dem-outlet
+    #   in:
+    #     outlet-coord: outlet-coord
+    #     projected-srs: projected-srs
+    #     dem-all: dem-all
+    #     bbox: bbox
+    #   out:
+    #     dem: dem
+    #     outlet: outlet
+    #
+    # - !OpSequence
+    #   name: dhsvm-network
+    #   in:
+    #     dem: dem
+    #     outlet: outlet
+    #     soil-min-depth: soil-min-depth
+    #     soil-max-depth: soil-max-depth
+    #   out:
+    #     labelled-outlet: labelled-outlet
+    #     flow-direction: flow-direction
+    #     soil-depth: soil-depth
+    #     boundary-raster: boundary-raster
+    #     boundary-vector: boundary-vector
+    #     stream-network: stream-network
+    #     network: network
+    #     map: map
+    #     class: class
+    #     state: network-state
+    # - !Operation
+    #   name: dhsvm-mask
+    #   in:
+    #     input-ds: boundary-raster
+    #   out:
+    #     netcdf: mask-nc
 
     ## Station files  ##
     ####################
@@ -165,83 +165,83 @@ sequence: !OpSequence
     #   out:
     #     chunks: nldas-chunks
     #     data: nldas
-    # - !Operation
-    #   name: dhsvm-station
-    #   in:
-    #     start: start
-    #     end: end
-    #     dt: '1H'
-    #     time-zone: utc-offset
-    #     nldas-ds: nldas
-    #     elevation-ds: dem
-    #     projected-epsg: projected-srs
-    #     precip-adj: 1.871198
-    #   out:
-    #     station: station
+    - !Operation
+      name: dhsvm-station
+      in:
+        start: start
+        end: end
+        dt: '1H'
+        time-zone: utc-offset
+        nldas-ds: nldas
+        elevation-ds: dem
+        projected-epsg: projected-srs
+        precip-adj: 1.871198
+      out:
+        station: station
 
     ## Climatology ##
     #################
-    - !OpSequence
-      name: align
-      dims:
-        - monthly
-      in:
-        input: prism-full
-        template: dem
-        padding: !Coord
-          x: 10
-          y: 10
-        algorithm: bilinear
-      out:
-        matched: prism
-    - !Operation
-      name: dhsvm-prism
-      dims:
-        - monthly
-      in:
-        input-ds: prism
-      out:
-        netcdf: prism-nc
+    # - !OpSequence
+    #   name: align
+    #   dims:
+    #     - monthly
+    #   in:
+    #     input: prism-full
+    #     template: dem
+    #     padding: !Coord
+    #       x: 10
+    #       y: 10
+    #     algorithm: bilinear
+    #   out:
+    #     matched: prism
+    # - !Operation
+    #   name: dhsvm-prism
+    #   dims:
+    #     - monthly
+    #   in:
+    #     input-ds: prism
+    #   out:
+    #     netcdf: prism-nc
 
     ## Soil and Vegetation ##
     #########################
-    - !OpSequence
-      name: dhsvm-polaris
-      in:
-        polaris: polaris
-        template: dem
-      out:
-        soil-type-nc: soil-type-nc
-    - !Operation
-      name: dhsvm-soil-depth
-      in:
-        input-ds: soil-depth
-      out:
-        netcdf: soil-depth-nc
-
-    - !OpSequence
-      name: align
-      in:
-        input: nlcd-full
-        template: dem
-        padding: !Coord
-          x: 10000
-          y: 10000
-        algorithm: near
-      out:
-        matched: nlcd
-    - !Operation
-      name: nlcd-to-dhsvm
-      in:
-        nlcd-ds: nlcd
-      out:
-        veg-type: veg-type
-    - !Operation
-      name: dhsvm-veg-type
-      in:
-        input-ds: veg-type
-      out:
-        netcdf: veg-type-nc
+    # - !OpSequence
+    #   name: dhsvm-polaris
+    #   in:
+    #     polaris: polaris
+    #     template: dem
+    #   out:
+    #     soil-type-nc: soil-type-nc
+    # - !Operation
+    #   name: dhsvm-soil-depth
+    #   in:
+    #     input-ds: soil-depth
+    #   out:
+    #     netcdf: soil-depth-nc
+    #
+    # - !OpSequence
+    #   name: align
+    #   in:
+    #     input: nlcd-full
+    #     template: dem
+    #     padding: !Coord
+    #       x: 10000
+    #       y: 10000
+    #     algorithm: near
+    #   out:
+    #     matched: nlcd
+    # - !Operation
+    #   name: nlcd-to-dhsvm
+    #   in:
+    #     nlcd-ds: nlcd
+    #   out:
+    #     veg-type: veg-type
+    # - !Operation
+    #   name: dhsvm-veg-type
+    #   in:
+    #     input-ds: veg-type
+    #   out:
+    #     netcdf: veg-type-nc
 
     ## Shadow and skyview ##
     ########################
@@ -269,24 +269,24 @@ sequence: !OpSequence
     #
     ## State files ##
     #################
-    - !Operation
-      name: dhsvm-interception-state
-      in:
-        template_ds: dem-nc
-      out:
-        netcdf: interception-state
-    - !Operation
-      name: dhsvm-snow-state
-      in:
-        template_ds: dem-nc
-      out:
-        netcdf: snow-state
-    - !Operation
-      name: dhsvm-soil-state
-      in:
-        template_ds: dem-nc
-      out:
-        netcdf: soil-state
+    # - !Operation
+    #   name: dhsvm-interception-state
+    #   in:
+    #     template_ds: dem-nc
+    #   out:
+    #     netcdf: interception-state
+    # - !Operation
+    #   name: dhsvm-snow-state
+    #   in:
+    #     template_ds: dem-nc
+    #   out:
+    #     netcdf: snow-state
+    # - !Operation
+    #   name: dhsvm-soil-state
+    #   in:
+    #     template_ds: dem-nc
+    #   out:
+    #     netcdf: soil-state
 
 
 structure: !CaseDirectoryStructure
@@ -341,7 +341,7 @@ structure: !CaseDirectoryStructure
         filename: outlet
       stream-network: !File
         filename: streams
-    downloads:
+    downloads2021:
       nldas: !File
         filename: nldas
       chunks:
