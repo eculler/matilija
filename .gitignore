@@ -1,4 +1,7 @@
+# MacOS system files
 *.DS_Store
-DHSVM3.2.old/*
-calibrate/*
+Icon
+._*
+
+# Model files (developed elsewhere)
 src/dhsvm3.2/
