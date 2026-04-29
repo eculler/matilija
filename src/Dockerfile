@@ -1,21 +1,40 @@
-# Initialize the build with compiler
-FROM ubuntu:bionic-20200311
-RUN apt-get update && apt-get install -y build-essential
-RUN apt-get install -y libnetcdf-dev
-RUN apt-get install -y libx11-dev
-RUN apt-get install -y cmake
+# Builder stage: compile DHSVM
+FROM ubuntu:22.04 AS builder
 
-# Copy over DHSVM source code
-WORKDIR /matilija/src/dhsvm
-COPY dhsvm3.2 /matilija/src/dhsvm
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        curl \
+        libnetcdf-dev \
+        libx11-dev \
+        tar \
+    && rm -rf /var/lib/apt/lists/*
 
-# Compile DHSVM
+WORKDIR /matilija/src
+RUN curl --fail -L -o dhsvm3.2.tar.gz https://codeload.github.com/pnnl/DHSVM-PNNL/tar.gz/refs/tags/v3.2 \
+    && tar -xzf dhsvm3.2.tar.gz \
+    && mv DHSVM-PNNL-3.2 dhsvm \
+    && rm dhsvm3.2.tar.gz
+
 WORKDIR /matilija/src/dhsvm/build
 RUN cmake -D CMAKE_BUILD_TYPE:STRING=Release \
-  -D DHSVM_USE_X11:BOOL=ON \
-  -D DHSVM_USE_NETCDF:BOOL=ON \
-  ..
-RUN cmake --build .
+    -D DHSVM_USE_X11:BOOL=ON \
+    -D DHSVM_USE_NETCDF:BOOL=ON \
+    .. \
+    && cmake --build .
 
-# Move to main directory
+# Runtime stage: copy the built binary and runtime libraries only
+FROM ubuntu:22.04
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libnetcdf19 \
+        libx11-6 \
+        libhdf5-103-1 \
+        libcurl4 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /matilija
+COPY --from=builder /matilija/src/dhsvm/build/DHSVM /matilija/src/dhsvm/build/DHSVM

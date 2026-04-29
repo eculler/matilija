@@ -2,6 +2,3 @@
 *.DS_Store
 Icon
 ._*
-
-# Model files (developed elsewhere)
-src/dhsvm3.2/
