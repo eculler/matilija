@@ -1,0 +1,7 @@
+#!/bin/bash
+# All run-dir paths are under $HOME, so mount that at the same path.
+exec docker run --rm \
+    -v "$HOME:$HOME" \
+    -w "$(pwd)" \
+    dhsvm-matilija \
+    /matilija/src/dhsvm/build/DHSVM/sourcecode/DHSVM "$@"

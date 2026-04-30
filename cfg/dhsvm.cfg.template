@@ -132,6 +132,7 @@ Basin Mask File      =  input/mask.nc
 Stream Map File      = input/stream/stream.map.csv
 Stream Network File  = input/stream/stream.network.csv
 Stream Class File    = input/stream/stream.class.csv
+Riparian Veg File    = none
 
 ################ ROAD NETWORK ##################################################
 # The following three fields are only used if Flow Routing = NETWORK and there
@@ -160,14 +161,14 @@ Station Name 1     = Station1
 North Coordinate 1 = 3830297.25774327
 East Coordinate 1  = 826880.4156877673
 Elevation 1        = 1688
-Station File 1     = input/station/Station1.tsv
+Station File 1     = {station_dir}/Station1.tsv
 
 
 Station Name 2     = Station2
 North Coordinate 2 = 3830709.6808675984
 East Coordinate 2  = 838355.4883497815
 Elevation 2        = 1381
-Station File 2     = input/station/Station2.tsv
+Station File 2     = {station_dir}/Station2.tsv
 
 
 ################ MM5 ###########################################################

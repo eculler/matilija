@@ -1,0 +1,6 @@
+name,min,max,scale
+sandy_loam_K,1e-5,1e-3,log
+sandy_loam_exp,0.2,4,linear
+loam_K,1e-6,1e-4,log
+loam_exp,0.2,4,linear
+P_adj,0.8,2.5,linear
