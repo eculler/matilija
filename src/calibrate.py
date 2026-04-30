@@ -97,7 +97,7 @@ class Particle():
                 ],
                 index_col='datetime',
             )
-            df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H')
+            df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H:%M')
             first_record = df.index.min()
             last_record = df.index.max()
             df = df[(df.index >= start) & (df.index <= end)]
@@ -118,7 +118,7 @@ class Particle():
                 float_format='%.5f',
                 header=False,
                 index_label='datetime',
-                date_format='%m/%d/%Y-%H',
+                date_format='%m/%d/%Y-%H:%M',
             )
         # Write configuration file
         with open(self.template) as template:
