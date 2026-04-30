@@ -39,6 +39,7 @@ QPF                  = FALSE              # TRUE or FALSE
 PRISM                = TRUE              # TRUE or FALSE
 PRISM data path      = input/prism/prism
 PRISM data extension = nc                   # file extension for PRISM files
+Gridded Met data     = FALSE             # TRUE or FALSE
 Canopy radiation attenuation mode = FIXED # FIXED or VARIABLE
 Shading              = TRUE   	          # TRUE or FALSE
 Shading data path    = input/solar/Shadow
@@ -54,7 +55,13 @@ Precipitation lapse rate = CONSTANT       # CONSTANT, MAP, or VARIABLE
 Cressman radius      = 10                 # in model pixels
 Cressman stations    = 4                  # number of stations
 Stream Temperature   = TRUE
-Canopy Shading       = FALSE
+Riparian Shading     = FALSE
+Variable Light Transmittance = FALSE
+Canopy Gapping       = FALSE
+Snow Sliding         = FALSE
+Precipitation Separation = FALSE
+Snow Statistics      = FALSE
+Routing Neighbors    = 4
 
 ################################################################################
 # MODEL AREA SECTION
@@ -93,6 +100,11 @@ Snow Threshold       = 0.5                # Maximum temperature at which snow
 					  # occurs (C)
 Snow Water Capacity  = 0.03               # Snow liquid water holding capacity
 					  # (fraction)
+Fresh Snow Albedo    = 0.85
+Albedo Accumulation Lambda = 0.95
+Albedo Melting Lambda = 0.70
+Albedo Accumulation Min = 0.40
+Albedo Melting Min   = 0.30
 Reference Height     = 45.0               # Reference height (m)
 Rain LAI Multiplier  = 0.0001             # LAI Multiplier for rain interception
 Snow LAI Multiplier  = 0.0005             # LAI Mulitplier for snow interception
@@ -230,7 +242,7 @@ Precipitation lapse rate =
 Soil Map File	     = input/soils.nc
 Soil Depth File      = input/sd.nc
 
-Number of Soil Types = 4
+Number of Soil Types = 16
 
 ################ SOIL 1 #########################################################
 

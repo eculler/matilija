@@ -97,7 +97,7 @@ class Particle():
                 ],
                 index_col='datetime',
             )
-            df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H:%M')
+            df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H')
             first_record = df.index.min()
             last_record = df.index.max()
             df = df[(df.index >= start) & (df.index <= end)]
@@ -118,7 +118,7 @@ class Particle():
                 float_format='%.5f',
                 header=False,
                 index_label='datetime',
-                date_format='%m/%d/%Y-%H:%M',
+                date_format='%m/%d/%Y-%H',
             )
         # Write configuration file
         with open(self.template) as template:
@@ -193,7 +193,7 @@ class Particle():
     def _prepare_workdir(self, refresh=False):
         """Create particle workdir; optionally refresh non-state inputs."""
         if not os.path.isdir(self.workdir):
-            shutil.copytree('template', self.workdir)
+            shutil.copytree('template', self.workdir, symlinks=True)
             return
 
         if not refresh:
