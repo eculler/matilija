@@ -113,7 +113,7 @@ Min Intercepted Snow = 0.005              # Intercepted snow that can only be
 Outside Basin Value  = 0                  # Value in mask that indicates outside
 					  # the basin
 Temperature Lapse Rate   = -0.006         # Temperature lapse rate (C/m)
-Precipitation Lapse Rate = 0.0001        # Precipitation lapse rate (m/m)
+Precipitation Lapse Rate = 0.00035       # Precipitation lapse rate (m/m); Daly et al. (2008) Int. J. Climatol. 28:2031-2064
 Precipitation Multiplier = 0.
 
 ####################Only if CanopyShading is TRUE###############################
@@ -285,10 +285,10 @@ Thermal Capacity       2 = 1.4e6  1.4e6 1.4e6
 ################ SOIL 3 #########################################################
 
 Soil Description       3 = SANDY LOAM
-Lateral Conductivity   3 = {sandy_loam_K:g} # 1e-5 to 1e-7 m/s
-Exponential Decrease   3 = {sandy_loam_exp:f} # .25 to 4
+Lateral Conductivity   3 = 1e-4
+Exponential Decrease   3 = 3.0
 Depth Threshold        3 = 0.5
-Maximum Infiltration   3 = 6e-6
+Maximum Infiltration   3 = {sandy_loam_inf:g}
 Surface Albedo         3 = 0.1
 Number of Soil Layers  3 = 3
 Porosity               3 =  .44 .44 .44 #
@@ -297,7 +297,7 @@ Bubbling Pressure      3 =  .15 .15 .15
 Field Capacity         3 =  .18 .18 .18 #
 Wilting Point          3 =  .08 .08 .08 #
 Bulk Density           3 = 1460. 1460. 1460. # kg/m^3
-Vertical Conductivity  3 = {sandy_loam_K:g} {sandy_loam_K:g} {sandy_loam_K:g}
+Vertical Conductivity  3 = 1e-5 1e-5 1e-5
 Thermal Conductivity   3 = 7.114  6.923 7.0
 Thermal Capacity       3 = 1.4e6  1.4e6 1.4e6
 
@@ -342,10 +342,10 @@ Thermal Capacity       5 = 1.4e6  1.4e6 1.4e6
 ################ SOIL 6 #########################################################
 
 Soil Description       6 = LOAM
-Lateral Conductivity   6 = {loam_K:g} # 2e-6 to  2e-5 m/s
-Exponential Decrease   6 = {loam_exp:f}
+Lateral Conductivity   6 = 2e-5
+Exponential Decrease   6 = 3.0
 Depth Threshold        6 = 0.5
-Maximum Infiltration   6 = 1e-5
+Maximum Infiltration   6 = {loam_inf:g}
 Surface Albedo         6 = 0.1
 Number of Soil Layers  6 = 3
 Porosity               6 =  .46 .46 .46 #
@@ -354,7 +354,7 @@ Bubbling Pressure      6 =  .11 .11 .11
 Field Capacity         6 =  .28 .28 .28 #
 Wilting Point          6 =  .14 .14 .14 #
 Bulk Density           6 = 1430. 1430. 1430. # kg/m^3
-Vertical Conductivity  6 = {loam_K:g} {loam_K:g} {loam_K:g}
+Vertical Conductivity  6 = 2e-6 2e-6 2e-6
 Thermal Conductivity   6 = 7.114  6.923 7.0
 Thermal Capacity       6 = 1.4e6  1.4e6 1.4e6
 
@@ -577,7 +577,7 @@ Snow Interception Eff    1 = 0.6
 Impervious Fraction      1 = 0.0
 Height                   1 = 30.0 0.5
 Maximum Resistance       1 = 5000. 3000.
-Minimum Resistance       1 = 666.6 200.
+Minimum Resistance       1 = {forest_minres:.1f} 200.
 Moisture Threshold       1 = 0.33 0.13
 Vapor Pressure Deficit   1 = 4000 4000
 Rpc                      1 = .108 .108
@@ -585,9 +585,8 @@ Number of Root Zones     1 = 3
 Root Zone Depths         1 = 0.10 0.25 0.40
 Overstory Root Fraction  1 = 0.20 0.40 0.40
 Understory Root Fraction 1 = 0.40 0.60 0.00
-## Make these a lot smaller -- replace with values less than one -- over 0.5 under 0.25
-Overstory Monthly LAI    1 = 12. 12. 12. 12. 12. 12. 12. 12. 12. 12. 12. 12.
-Understory Monthly LAI   1 = 6. 6. 6. 6. 6. 6. 6. 6. 6. 6. 6. 6.
+Overstory Monthly LAI    1 = {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f}
+Understory Monthly LAI   1 = {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f}
 Overstory Monthly Alb    1 = 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
 Understory Monthly Alb   1 = 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
 
@@ -711,7 +710,7 @@ Snow Interception Eff    5 = 0.6
 Impervious Fraction      5 = 0.0
 Height                   5 = 20.0 0.5
 Maximum Resistance       5 = 5000. 600.
-Minimum Resistance       5 = 200. 200.
+Minimum Resistance       5 = {forest_minres:.1f} 200.
 Moisture Threshold       5 = 0.33 0.13
 Vapor Pressure Deficit   5 = 4000 4000
 Rpc                      5 = .108 .108
@@ -719,8 +718,8 @@ Number of Root Zones     5 = 3
 Root Zone Depths         5 = 0.10 0.25 0.40
 Overstory Root Fraction  5 = 0.20 0.40 0.40
 Understory Root Fraction 5 = 0.40 0.60 0.00
-Overstory Monthly LAI    5 = 99. 99. 99. 99. 99. 99. 99. 99. 99. 99. 99. 99.
-Understory Monthly LAI   5 = 99. 99. 99. 99. 99. 99. 99. 99. 99. 99. 99. 99.
+Overstory Monthly LAI    5 = {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f}
+Understory Monthly LAI   5 = {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f} {forest_lai:.3f}
 Overstory Monthly Alb    5 = 0.09 0.09 0.09 0.1 0.11 0.12 0.12 0.11 0.11 0.1 0.1 0.09
 Understory Monthly Alb   5 = 0.09 0.09 0.09 0.1 0.11 0.12 0.12 0.11 0.11 0.1 0.1 0.09
 
@@ -843,7 +842,7 @@ Snow Interception Eff    9 =
 Impervious Fraction      9 = 0.0
 Height                   9 =  1.0
 Maximum Resistance       9 =  600
-Minimum Resistance       9 =  200
+Minimum Resistance       9 = {shrub_minres:.1f}
 Moisture Threshold       9 =  0.33
 Vapor Pressure Deficit   9 =  4000
 Rpc                      9 =  .108
@@ -852,7 +851,7 @@ Root Zone Depths         9 =  0.10 0.25 0.40
 Overstory Root Fraction  9 =
 Understory Root Fraction 9 =  0.40 0.60 0.00
 Overstory Monthly LAI    9 =
-Understory Monthly LAI   9 = 99. 99. 99. 99. 99. 99. 99. 99. 99. 99. 99. 99.
+Understory Monthly LAI   9 = {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f} {shrub_lai:.3f}
 Overstory Monthly Alb    9 =
 Understory Monthly Alb   9 = 0.22 0.22 0.22 0.23 0.24 0.25 0.26 0.26 0.25 0.24 0.23 0.22
 

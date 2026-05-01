@@ -110,8 +110,6 @@ class Particle():
                         end=end.isoformat(),
                         first=first_record.isoformat(),
                         last=last_record.isoformat()))
-            df.precipitation = df.precipitation * self.position[-1]
-            logging.debug('Precipitation adjusted by: %s', self.position[-1])
             df.to_csv(
                 os.path.join(self.station_tmp, 'Station{}.tsv'.format(i)),
                 sep='\t',
