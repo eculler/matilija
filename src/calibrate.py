@@ -76,9 +76,10 @@ class Particle():
         os.makedirs(self.output_dir)
 
         # Write date-filtered station files into output directory
+        prefix = 'Station.{}.'.format(self.station_slug)
         station_files = sorted(
             f for f in os.listdir(self.station_dir)
-            if f.startswith('Station'))
+            if f.startswith(prefix))
         for station in station_files:
             df = pd.read_csv(
                 os.path.join(self.station_dir, station),
