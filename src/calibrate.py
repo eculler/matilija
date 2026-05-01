@@ -15,7 +15,7 @@ import numpy as np
 
 class Particle():
 
-    def __init__(self, bins, position, n, obs, start, end, dhsvm):
+    def __init__(self, bins, position, n, obs, start, end, dhsvm, station_slug):
         self.params = [key for key, _ in bins.items()]
         self.min = np.array([min(b) for b in bins.values()])
         self.max = np.array([max(b) for b in bins.values()])
@@ -26,6 +26,7 @@ class Particle():
         self.start = start
         self.end = end
         self.dhsvm = dhsvm
+        self.station_slug = station_slug
 
         self.i = 0
         self.ready = True
@@ -74,15 +75,11 @@ class Particle():
             shutil.rmtree(self.output_dir)
         os.makedirs(self.output_dir)
 
-        # New station file
-        if self.station_tmp and os.path.isdir(self.station_tmp):
-            shutil.rmtree(self.station_tmp)
-        self.station_tmp = os.path.join(self.output_dir, 'station')
-        os.mkdir(self.station_tmp)
+        # Write date-filtered station files into output directory
         station_files = sorted(
             f for f in os.listdir(self.station_dir)
             if f.startswith('Station'))
-        for i, station in enumerate(station_files, start=1):
+        for station in station_files:
             df = pd.read_csv(
                 os.path.join(self.station_dir, station),
                 sep='\t',
@@ -111,7 +108,7 @@ class Particle():
                         first=first_record.isoformat(),
                         last=last_record.isoformat()))
             df.to_csv(
-                os.path.join(self.station_tmp, 'Station{}.tsv'.format(i)),
+                os.path.join(self.output_dir, station),
                 sep='\t',
                 float_format='%.5f',
                 header=False,
@@ -124,14 +121,13 @@ class Particle():
 
         output = self._relative_to_workdir(self.output_dir)
         state = self._relative_to_workdir(state)
-        station_dir = self._relative_to_workdir(self.station_tmp)
 
         with open(self.cfg_path, 'w') as cfgfile:
             cfgfile.write(
                 cfg.format(
                     start=self.start, end=self.end,
                     output=output + '/', state=state + '/',
-                    station_dir=station_dir,
+                    station_slug=self.station_slug,
                     **{param: pos
                        for param, pos in zip(self.params, self.position)}
                 )
@@ -187,6 +183,8 @@ class Particle():
 
         self.template = os.path.join(self.workdir, 'dhsvm.cfg.template')
         self.station_dir = os.path.join(self.workdir, 'input', 'station')
+        if not hasattr(self, 'station_slug'):
+            self.station_slug = 'adj.1-87'
 
     def _prepare_workdir(self, refresh=False):
         """Create particle workdir; optionally refresh non-state inputs."""
@@ -271,7 +269,7 @@ class Particle():
 
 class Swarm():
 
-    def __init__(self, nparticle, bins, dates, obs, jar, dhsvm, c):
+    def __init__(self, nparticle, bins, dates, obs, jar, dhsvm, c, station_slug):
         self.nparticle = nparticle
         self.bins = bins
         for param, lst in self.bins.items():
@@ -285,6 +283,7 @@ class Swarm():
         self.jar = jar
         self.dhsvm = dhsvm
         self.c = c
+        self.station_slug = station_slug
 
         self._build_clim_sigma()
         self.initialize_particles()
@@ -326,7 +325,7 @@ class Swarm():
                 [random.uniform(*r.pop()) for r in ranges.values()])
             particle = Particle(
                 self.bins, position, n, self.obs, self.start, self.end,
-                self.dhsvm)
+                self.dhsvm, self.station_slug)
             logging.debug('Created particle: %s', particle)
             self.particles.append(particle)
             n += 1
@@ -488,6 +487,7 @@ if __name__ == '__main__':
     bins_csv = sys.argv[6]
     dhsvm = sys.argv[7]
     c = float(sys.argv[8])
+    station_slug = sys.argv[9]
 
     start_time = time.time()
     jar = 'swarm.jar'
@@ -529,7 +529,7 @@ if __name__ == '__main__':
             swarm = pickle.load(jarfile)
         swarm.sync_progress()
     else:
-        swarm = Swarm(nparticle, bins, dates, obs, jar, dhsvm, c)
+        swarm = Swarm(nparticle, bins, dates, obs, jar, dhsvm, c, station_slug)
 
     wall = time.time() - start_time
     while wall < max_time and not swarm.complete:
