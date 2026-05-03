@@ -66,6 +66,14 @@ if __name__ == '__main__':
         shutil.rmtree(WORKDIR)
     shutil.copytree('template', WORKDIR, symlinks=True)
 
+    # Use the saveall network file so DHSVM can read all segment SAVE flags
+    # across the full run period (stream.network.csv omits SAVE on non-outlet
+    # segments, which works for short windows but fails for long continuous runs)
+    stream_dir = os.path.join(WORKDIR, 'input', 'stream')
+    saveall = os.path.join(stream_dir, 'stream.network.saveall.csv')
+    if os.path.isfile(saveall):
+        shutil.copy2(saveall, os.path.join(stream_dir, 'stream.network.csv'))
+
     _trim_station_files(station_slug, start, end)
 
     output_dir = os.path.join(WORKDIR, 'output')
