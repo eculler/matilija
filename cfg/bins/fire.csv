@@ -1,7 +1,4 @@
 name,min,max,scale
-sandy_loam_inf,1e-7,5e-5,log
-loam_inf,1e-7,5e-5,log
+loam_inf,1e-7,1.7e-5,log
 shrub_lai,0.01,4.0,linear
 forest_lai,0.01,8.0,linear
-shrub_minres,100,600,linear
-forest_minres,200,2000,linear

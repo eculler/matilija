@@ -123,14 +123,17 @@ class Particle():
         output = self._relative_to_workdir(self.output_dir)
         state = self._relative_to_workdir(state)
 
+        params_dict = {param: pos
+                       for param, pos in zip(self.params, self.position)}
+        if 'sandy_loam_inf' not in params_dict and 'loam_inf' in params_dict:
+            params_dict['sandy_loam_inf'] = 3.0 * params_dict['loam_inf']
         with open(self.cfg_path, 'w') as cfgfile:
             cfgfile.write(
                 cfg.format(
                     start=self.start, end=self.end,
                     output=output + '/', state=state + '/',
                     station_slug=self.station_slug,
-                    **{param: pos
-                       for param, pos in zip(self.params, self.position)}
+                    **params_dict
                 )
             )
 
@@ -286,7 +289,6 @@ class Swarm():
         self.c = c
         self.station_slug = station_slug
 
-        self._build_clim_sigma()
         self.initialize_particles()
 
         self.log = os.path.abspath('particles.csv')
@@ -295,20 +297,6 @@ class Swarm():
             writer.writerow(
                 ['window', 'particle', 'weight', 'nse'] +
                 [param for param in bins.keys()])
-
-    def _build_clim_sigma(self):
-        """ 
-        Climatological sigma = 
-            c * mean(obs within ±15 days of day-of-year)
-        """
-        doy = self.obs.index.day_of_year
-        self.clim_sigma = {}
-        for d in range(1, 367):
-            diff = np.abs(doy - d)
-            diff = np.minimum(diff, 366 - diff)
-            mask = diff <= 15
-            mean_q = self.obs.loc[mask, 'observed'].mean()
-            self.clim_sigma[d] = self.c * mean_q if mean_q > 0 else self.c
 
     def initialize_particles(self):
         """ Latin Hypercube sample of parameter space """
@@ -382,7 +370,7 @@ class Swarm():
         return self.end_dates[self.i]
 
     def _log_likelihood(self, particle):
-        """ Gaussian log-likelihood with climatological sigma """
+        """ Gaussian log-likelihood in log-flow space on daily aggregates """
         if not particle.ready:
             return -np.inf
         try:
@@ -399,13 +387,13 @@ class Swarm():
             results = results.join(self.obs, how='inner')
             if results.empty:
                 return -np.inf
-            sigma = np.array([
-                self.clim_sigma.get(d, self.c)
-                for d in results.index.day_of_year
-            ])
-            return -0.5 * np.sum(
-                ((results.dhsvm.values - results.observed.values) / sigma) ** 2
-            )
+            # Aggregate to daily sums before computing likelihood so that
+            # correlated hourly residuals don't inflate the effective N
+            results['date'] = results.index.date
+            daily = results.groupby('date')[['dhsvm', 'observed']].sum()
+            log_mod = np.log(np.maximum(daily['dhsvm'].values, 1e-9))
+            log_obs = np.log(np.maximum(daily['observed'].values, 1e-9))
+            return -0.5 * np.sum(((log_mod - log_obs) / self.c) ** 2)
         except Exception as e:
             logging.error('Log-likelihood failed for particle %d: %s',
                           particle.n, e)
