@@ -5,3 +5,6 @@ Icon
 
 # Batch scripts contain project-specific paths and are not archived
 cfg/batch/
+
+# Python builds
+*.pyc

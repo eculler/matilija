@@ -5,13 +5,20 @@ Fills the config template, trims station files to the run period, and runs
 DHSVM once.  Assumes the working directory contains a template/ directory
 (same layout expected by calibrate.py).
 
+Default parameters are intentionally conservative open-loop baseline values
+for the currently calibrated fire-run parameters:
+
+    loam_inf=1e-5, sandy_loam_inf=3e-5, forest_lai=3.0, shrub_lai=1.5
+
+If loam_inf is overridden and sandy_loam_inf is not, sandy_loam_inf is derived
+as 3 * loam_inf, matching calibrate.py.
+
 Usage:
     python open_loop.py <start> <end> <dhsvm> <station_slug> [param=value ...]
 
 Example:
     python open_loop.py 2006-10-01 2021-06-25 /path/to/DHSVM adj.1-87 \\
-        sandy_loam_inf=2e-5 loam_inf=1e-5 forest_lai=3.0 shrub_lai=1.5 \\
-        forest_minres=500 shrub_minres=300
+        loam_inf=1e-5 forest_lai=3.0 shrub_lai=1.5
 """
 import os
 import shutil
@@ -22,6 +29,12 @@ import pandas as pd
 COLUMNS = ['datetime', 'air_temp', 'wind_speed', 'relative_humidity',
            'incoming_shortwave', 'incoming_longwave', 'precipitation']
 WORKDIR = 'open_loop_work'
+DEFAULT_PARAMS = {
+    'loam_inf': 1e-5,
+    'sandy_loam_inf': 3e-5,
+    'forest_lai': 3.0,
+    'shrub_lai': 1.5,
+}
 
 
 def _find_state_dir(start):
@@ -36,7 +49,7 @@ def _find_state_dir(start):
     return base
 
 
-def _trim_station_files(slug, start, end):
+def _write_station_files(slug, start, end, output_dir):
     station_dir = os.path.join(WORKDIR, 'input', 'station')
     prefix = 'Station.{}.'.format(slug)
     for fname in sorted(f for f in os.listdir(station_dir) if f.startswith(prefix)):
@@ -46,7 +59,7 @@ def _trim_station_files(slug, start, end):
         df.index = pd.to_datetime(df.index, format='%m/%d/%Y-%H:%M')
         df = df[(df.index >= start) & (df.index <= end)]
         df.to_csv(
-            os.path.join(station_dir, fname),
+            os.path.join(output_dir, fname),
             sep='\t', float_format='%.5f', header=False,
             index_label='datetime', date_format='%m/%d/%Y-%H:%M')
 
@@ -60,24 +73,19 @@ if __name__ == '__main__':
     end = pd.Timestamp(sys.argv[2])
     dhsvm = sys.argv[3]
     station_slug = sys.argv[4]
-    params = {k: float(v) for k, v in (kv.split('=', 1) for kv in sys.argv[5:])}
+    overrides = {k: float(v) for k, v in (kv.split('=', 1) for kv in sys.argv[5:])}
+    params = dict(DEFAULT_PARAMS)
+    params.update(overrides)
+    if 'loam_inf' in overrides and 'sandy_loam_inf' not in overrides:
+        params['sandy_loam_inf'] = 3.0 * params['loam_inf']
 
     if os.path.isdir(WORKDIR):
         shutil.rmtree(WORKDIR)
     shutil.copytree('template', WORKDIR, symlinks=True)
 
-    # Use the saveall network file so DHSVM can read all segment SAVE flags
-    # across the full run period (stream.network.csv omits SAVE on non-outlet
-    # segments, which works for short windows but fails for long continuous runs)
-    stream_dir = os.path.join(WORKDIR, 'input', 'stream')
-    saveall = os.path.join(stream_dir, 'stream.network.saveall.csv')
-    if os.path.isfile(saveall):
-        shutil.copy2(saveall, os.path.join(stream_dir, 'stream.network.csv'))
-
-    _trim_station_files(station_slug, start, end)
-
     output_dir = os.path.join(WORKDIR, 'output')
     os.makedirs(output_dir, exist_ok=True)
+    _write_station_files(station_slug, start, end, output_dir)
 
     state_dir = _find_state_dir(start)
     output_rel = os.path.relpath(output_dir, WORKDIR)
